@@ -106,7 +106,7 @@ sub encode_array_response {
       my $cookies = Mojo::Cookie::Response->new->parse( $value );
       $self->response->cookies( $cookies->[0] );
     } else {
-      $self->response->headers->add_line( $key, $value );
+      $self->response->headers->add( $key, $value );
     }
   }
 
@@ -135,7 +135,7 @@ sub encode_response {
     $self->response->headers->remove('Content-Length');
   } else {
     if ( !$self->response->headers->content_length) {
-      $self->response->headers->content_length( $self->response->content->body_length );
+      $self->response->headers->content_length( $self->response->content->body_size );
     }
   }
 

@@ -17,7 +17,9 @@ sub firstdir {
 sub hostname {
   my $class = shift;
   my $req  = shift;
-  return $class->strip_hostname( $req->headers->host );
+  
+  # XXX - if $req->headers->host is called in an array context it returns an arrayref
+  return $class->strip_hostname( scalar($req->headers->host) );
 }
 
 ##
