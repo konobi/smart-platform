@@ -41,8 +41,7 @@ sub start {
 }
 
 sub stop {
-  my $CONFIG  = RSP->config();
-  my $PIDFILE = File::Spec->catfile( $CONFIG->{server}->{Root}, 'run', 'rsp.pid' );
+  my $PIDFILE = RSP->conf->server->pidfile;
   my $fh = IO::File->new( $PIDFILE );
   my $pid = $fh->getline;
   $fh->close;
@@ -64,7 +63,8 @@ sub handle_one_connection {
       if ($notimeout) { die "alarm"; }
     };
     $notimeout = 1;
-    alarm(RSP->config->{server}->{ConnectionTimeout} || 120);
+    my $timeout = RSP->conf->server->connection_timeout;
+    alarm($timeout);
     while( my $r = $c->get_request ) {    
       alarm(120);
       $notimeout = 0;
@@ -73,7 +73,7 @@ sub handle_one_connection {
       if ($@) {
         $c->send_error(RC_INTERNAL_SERVER_ERROR, $@);
       } else {
-        if ( $this_conn == ( RSP->config->{server}->{MaxRequetsPerClient} || 5 )) {
+        if ( $this_conn == RSP->conf->server->max_requests_per_client) {
           $response->header('Connection','close');
         }
         $c->send_response( $response );      
@@ -98,9 +98,10 @@ sub run {
     Reuse => 1,
     ReuseAddr => 1
   );
-  
-  my $CONFIG  = RSP->config();
-  my $PIDFILE = File::Spec->catfile( $CONFIG->{server}->{Root}, 'run', 'rsp.pid' );
+
+  my $CONFIG = RSP->config;
+  my $server_conf = RSP->conf->server;
+  my $PIDFILE = $server_conf->pidfile;
 
   if ( fork() ) {
     print "Forked daemon\n";
@@ -118,30 +119,30 @@ sub run {
     $fh->close;
   }
 
-  if ( $CONFIG->{server}->{User} ) {
+  if ( $server_conf->user ) {
    {
-      my ($name,$passwd,$gid,$members) = getgrnam( $CONFIG->{server}->{Group} );
+      my ($name,$passwd,$gid,$members) = getgrnam( $server_conf->group );
       if ($gid) {
         POSIX::setgid( $gid );
         if ($!) { warn "setgid: $!" }
       } else {
-        die "unknown user $CONFIG->{server}->{User}";
+        die "unknown group ".$server_conf->group;
       }
    }
     {
-      my ($name,$passwd,$uid,$gid, $quota,$comment,$gcos,$dir,$shell,$expire) = getpwnam( $CONFIG->{server}->{User} );
+      my ($name,$passwd,$uid,$gid, $quota,$comment,$gcos,$dir,$shell,$expire) = getpwnam( $server_conf->user );
       if ($uid) {
         POSIX::setuid( $uid );
 	if ($!) { warn "setuid: $!" }
       } else {
-        die "unknown user $CONFIG->{server}->{User}";
+        die "unknown user ".$server_conf->user;
       }
    }
 
   }
 
 
-  for (1..$CONFIG->{server}->{MaxClients}) {
+  for (1..$server_conf->max_children) {
     $kids{&fork_a_slave($master)} = "slave";
   }
   {                             # forever:
@@ -180,7 +181,7 @@ sub child_does {                # return void
 
   my $did = 0;                  # processed count
 
-  my $config = RSP->config;
+  my $server_config = RSP->config;
   {
     flock($master, 2);          # LOCK_EX
     my $slave = $master->accept or die "accept: $!";
@@ -188,7 +189,7 @@ sub child_does {                # return void
     my @start_times = (times, time);
     $slave->autoflush(1);
     handle_one_connection($slave); # closes $slave at right time
-  } continue { redo if ++$did < $config->{server}->{MaxRequestsPerChild} };
+  } continue { redo if ++$did < $server_config->max_requests_per_child };
   exit 0;
 }
 
