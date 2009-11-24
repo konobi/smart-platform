@@ -7,6 +7,7 @@ use Encode;
 use base 'RSP::Transaction';
 use File::Basename;
 use RSP::Transaction::Mojo::HostMap;
+use Mojo::Asset::File;
 
 sub hostname {
   my $self = shift;
@@ -36,9 +37,9 @@ sub encode_body {
       $self->response->body( $content );
     } elsif ( ref($body) && $body->isa('RSP::JSObject') ) {
       if ( $body->isa('RSP::JSObject::File') ) {
-	my $f = Mojo::File->new;
+	my $f = Mojo::Asset::File->new;
 	$f->path( $body->fullpath );
-	$self->response->content->file( $f );
+	$self->response->content->asset( $f );
       } else {
 	##
 	## it's an object that exists in both JS and Perl, convert it
